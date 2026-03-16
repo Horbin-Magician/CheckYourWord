@@ -1,0 +1,24 @@
+{
+  "name": "check-your-word",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.5.13",
+    "element-plus": "^2.9.1",
+    "@google/genai": "^1.0.0",
+    "mammoth": "^1.8.0",
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.2.0",
+    "unplugin-vue-components": "^28.0.0",
+    "unplugin-auto-import": "^19.0.0"
+  }
+}
