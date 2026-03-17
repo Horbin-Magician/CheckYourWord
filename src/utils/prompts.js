@@ -16,6 +16,8 @@ export function buildCheckPrompt(chunkText, headingHierarchy, chunkIndex, totalC
 **章节位置**: ${headingHierarchy}
 **分块**: 第 ${chunkIndex + 1} 块，共 ${totalChunks} 块
 
+**重要说明**: 文本中以【】包裹的行（例如【第三章 研究方法】）是章节位置标记，仅用于标识上下文，不属于论文正文。请勿对这些标记行本身报告任何问题，也不要在 "original" 字段中包含这些标记文本。
+
 ---
 ${chunkText}
 ---

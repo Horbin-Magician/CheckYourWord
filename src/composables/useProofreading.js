@@ -1,5 +1,31 @@
 import { ref, computed } from 'vue'
 
+function normalizeText(text) {
+  return (text || '')
+    .replace(/\s+/g, '')
+    .replace(/["'`“”‘’]/g, '')
+    .trim()
+}
+
+function resolveIssueHeading(chunk, issue) {
+  if (!chunk.sections?.length) return chunk.headingHierarchy
+  if (chunk.sections.length === 1) return chunk.sections[0].headingHierarchy
+  if (!issue?.original) return chunk.headingHierarchy
+
+  const original = issue.original.trim()
+  const normalizedOriginal = normalizeText(original)
+
+  // 先尝试原文精确包含
+  let matched = chunk.sections.find(s => s.textContent.includes(original))
+  if (matched) return matched.headingHierarchy
+
+  // 再尝试归一化后的包含，容忍空白和引号差异
+  matched = chunk.sections.find(s => normalizeText(s.textContent).includes(normalizedOriginal))
+  if (matched) return matched.headingHierarchy
+
+  return chunk.headingHierarchy
+}
+
 export function useProofreading() {
   const results = ref([])
   const chunkStatuses = ref([]) // 'pending' | 'processing' | 'completed' | 'error'
@@ -51,11 +77,11 @@ export function useProofreading() {
       while (retries <= maxRetries) {
         try {
           const issues = await checkChunkFn(chunks[i])
-          // 给每条结果附加章节信息
+          // 给每条结果附加章节信息，尝试精确匹配到原文所在的小节
           const enriched = issues.map(issue => ({
             ...issue,
             sectionNames: chunks[i].sectionNames,
-            headingHierarchy: chunks[i].headingHierarchy,
+            headingHierarchy: resolveIssueHeading(chunks[i], issue),
             chunkIndex: i,
           }))
           results.value = [...results.value, ...enriched]

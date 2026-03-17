@@ -77,7 +77,7 @@ export function useGemini() {
 
     const prompt = buildCheckPrompt(
       chunk.textContent,
-      chunk.headingHierarchy,
+      chunk.chunkHeadingHierarchy || chunk.headingHierarchy,
       chunk.index,
       chunk.totalChunks
     )
@@ -95,7 +95,9 @@ export function useGemini() {
     })
 
     const text = response.text
-    return JSON.parse(text)
+    const issues = JSON.parse(text)
+    // 过滤掉 original 字段命中【标题标记】的误报
+    return issues.filter(issue => !/^【[^】]*】(（续）)?\s*$/.test(issue.original?.trim()))
   }
 
   return {

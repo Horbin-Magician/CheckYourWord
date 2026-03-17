@@ -69,11 +69,18 @@ function finalizeSectionStats(section) {
 export function buildHeadingHierarchy(sections, index) {
   const target = sections[index]
   const path = [target.headingText]
+  let currentLevel = target.headingLevel
+
+  if (currentLevel <= 0) {
+    return target.headingText || '文档开头'
+  }
 
   for (let i = index - 1; i >= 0; i--) {
-    if (sections[i].headingLevel < target.headingLevel && sections[i].headingLevel > 0) {
+    const level = sections[i].headingLevel
+    if (level > 0 && level < currentLevel) {
       path.unshift(sections[i].headingText)
-      if (sections[i].headingLevel === 1) break
+      currentLevel = level
+      if (level === 1) break
     }
   }
 

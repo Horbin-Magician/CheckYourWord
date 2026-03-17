@@ -89,6 +89,13 @@ const categoryMap = {
 }
 const severityMap = { error: '错误', warning: '警告', info: '建议' }
 
+function simplifyHeadingHierarchy(headingHierarchy) {
+  const text = (headingHierarchy || '').trim()
+  if (!text) return '文档开头'
+  const parts = text.split(' / ').map(s => s.trim()).filter(Boolean)
+  return parts[parts.length - 1] || text
+}
+
 function handleExport(format) {
   if (format === 'md') exportMarkdown()
   else if (format === 'json') exportJSON()
@@ -104,7 +111,7 @@ function exportMarkdown() {
 
   props.results.forEach((r, i) => {
     lines.push(`## 问题 ${i + 1} [${severityMap[r.severity]}][${categoryMap[r.category]}]`)
-    lines.push(`- 位置: ${r.headingHierarchy}`)
+    lines.push(`- 位置: ${simplifyHeadingHierarchy(r.headingHierarchy)}`)
     lines.push(`- 原文: ${r.original}`)
     lines.push(`- 建议: ${r.suggestion}`)
     lines.push(`- 原因: ${r.reason}`)
@@ -119,7 +126,10 @@ function exportJSON() {
     fileName: props.fileName,
     exportedAt: new Date().toISOString(),
     summary: props.summary,
-    results: props.results,
+    results: props.results.map(r => ({
+      ...r,
+      headingHierarchy: simplifyHeadingHierarchy(r.headingHierarchy),
+    })),
   }
   downloadFile(JSON.stringify(data, null, 2), '论文检查报告.json', 'application/json;charset=utf-8')
 }

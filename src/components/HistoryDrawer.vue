@@ -60,12 +60,22 @@ function formatTime(isoStr) {
   })
 }
 
+function simplifyHeadingHierarchy(headingHierarchy) {
+  const text = (headingHierarchy || '').trim()
+  if (!text) return '文档开头'
+  const parts = text.split(' / ').map(s => s.trim()).filter(Boolean)
+  return parts[parts.length - 1] || text
+}
+
 function handleExportRecord(record) {
   const data = {
     fileName: record.fileName,
     savedAt: record.savedAt,
     summary: record.summary,
-    results: record.results,
+    results: (record.results || []).map(r => ({
+      ...r,
+      headingHierarchy: simplifyHeadingHierarchy(r.headingHierarchy),
+    })),
   }
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' })
   const url = URL.createObjectURL(blob)
