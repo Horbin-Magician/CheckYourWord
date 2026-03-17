@@ -17,7 +17,9 @@
       v-model:visible="showSettings"
       :gemini="gemini"
       :maxTokens="chunker.maxTokens.value"
+      :ignoreFormulaIssues="gemini.ignoreFormulaIssues.value"
       @update:maxTokens="v => chunker.maxTokens.value = v"
+      @update:ignoreFormulaIssues="v => gemini.ignoreFormulaIssues.value = v"
     />
 
     <!-- 历史记录抽屉 -->

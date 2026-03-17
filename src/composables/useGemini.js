@@ -5,6 +5,7 @@ import { SYSTEM_INSTRUCTION, buildCheckPrompt, RESPONSE_SCHEMA } from '../utils/
 const STORAGE_KEY = 'checkyourword_api_key'
 const MODEL_STORAGE_KEY = 'checkyourword_model'
 const BASE_URL_STORAGE_KEY = 'checkyourword_base_url'
+const IGNORE_FORMULA_ISSUES_STORAGE_KEY = 'checkyourword_ignore_formula_issues'
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
 const MIN_REQUEST_INTERVAL = 6000 // 免费用户 10 RPM
 
@@ -12,6 +13,7 @@ export function useGemini() {
   const apiKey = ref(localStorage.getItem(STORAGE_KEY) || '')
   const model = ref(localStorage.getItem(MODEL_STORAGE_KEY) || 'gemini-2.5-flash')
   const baseUrl = ref(localStorage.getItem(BASE_URL_STORAGE_KEY) || DEFAULT_BASE_URL)
+  const ignoreFormulaIssues = ref(localStorage.getItem(IGNORE_FORMULA_ISSUES_STORAGE_KEY) !== 'false')
   const isConnected = ref(false)
   const connectionError = ref(null)
 
@@ -22,6 +24,7 @@ export function useGemini() {
     localStorage.setItem(STORAGE_KEY, apiKey.value)
     localStorage.setItem(MODEL_STORAGE_KEY, model.value)
     localStorage.setItem(BASE_URL_STORAGE_KEY, baseUrl.value)
+    localStorage.setItem(IGNORE_FORMULA_ISSUES_STORAGE_KEY, String(ignoreFormulaIssues.value))
     ai = null // 重置 client
     isConnected.value = false
   }
@@ -79,7 +82,8 @@ export function useGemini() {
       chunk.textContent,
       chunk.chunkHeadingHierarchy || chunk.headingHierarchy,
       chunk.index,
-      chunk.totalChunks
+      chunk.totalChunks,
+      { ignoreFormulaIssues: ignoreFormulaIssues.value }
     )
 
     lastRequestTime = Date.now()
@@ -104,6 +108,7 @@ export function useGemini() {
     apiKey,
     model,
     baseUrl,
+    ignoreFormulaIssues,
     DEFAULT_BASE_URL,
     isConnected,
     connectionError,
