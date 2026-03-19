@@ -3,7 +3,7 @@
     <!-- 顶部导航 -->
     <header class="app-header">
       <h1 class="app-title">CheckYourWord</h1>
-      <span class="app-subtitle">毕业论文检查润色助手</span>
+      <span class="app-subtitle">文档检查润色助手</span>
       <div class="header-actions">
         <el-tag v-if="gemini.isConnected.value" type="success" size="small">API 已连接</el-tag>
         <el-tag v-else type="info" size="small">未连接</el-tag>

@@ -1,4 +1,4 @@
-# CheckYourWord - 毕业论文检查润色助手
+# CheckYourWord - 文档检查润色助手
 
 使用 Gemini 大模型辅助检查、润色毕业论文的纯前端网站。上传 .docx 文件后，AI 自动分析并给出修改建议。
 
