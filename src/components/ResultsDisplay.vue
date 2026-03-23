@@ -52,11 +52,39 @@
         <ResultCard v-for="(issue, i) in filteredResults" :key="i" :issue="issue" />
       </div>
     </el-card>
+
+    <el-dialog
+      v-model="exportDialogVisible"
+      title="导出筛选"
+      width="460px"
+      append-to-body
+    >
+      <div class="export-dialog-content">
+        <div class="export-format">导出格式：{{ pendingExportFormat === 'md' ? 'Markdown' : 'JSON' }}</div>
+        <div class="export-label">按重要程度筛选：</div>
+        <el-checkbox-group v-model="exportSeveritySelections">
+          <el-checkbox label="error">必须修改</el-checkbox>
+          <el-checkbox label="warning">建议修改</el-checkbox>
+          <el-checkbox label="info">可选改进</el-checkbox>
+        </el-checkbox-group>
+        <div class="export-preview">
+          将导出 {{ exportSummary.total }} 条问题：
+          {{ exportSummary.errors }} 条必须修改、{{ exportSummary.warnings }} 条建议修改、{{ exportSummary.infos }} 条可选改进
+        </div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="exportDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="confirmExport">确认导出</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
+import { ElMessage } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
 import ResultCard from './ResultCard.vue'
 
@@ -71,6 +99,9 @@ defineEmits(['save'])
 
 const severityFilter = ref('')
 const categoryFilter = ref('')
+const exportDialogVisible = ref(false)
+const pendingExportFormat = ref('md')
+const exportSeveritySelections = ref(['error', 'warning', 'info'])
 
 const filteredResults = computed(() => {
   let list = props.results
@@ -89,6 +120,22 @@ const categoryMap = {
 }
 const severityMap = { error: '错误', warning: '警告', info: '建议' }
 
+const exportResults = computed(() => {
+  const selectedSet = new Set(exportSeveritySelections.value)
+  return props.results.filter(r => selectedSet.has(r.severity))
+})
+
+const exportSummary = computed(() => buildSummary(exportResults.value))
+
+function buildSummary(list) {
+  return {
+    total: list.length,
+    errors: list.filter(r => r.severity === 'error').length,
+    warnings: list.filter(r => r.severity === 'warning').length,
+    infos: list.filter(r => r.severity === 'info').length,
+  }
+}
+
 function simplifyHeadingHierarchy(headingHierarchy) {
   const text = (headingHierarchy || '').trim()
   if (!text) return '文档开头'
@@ -97,19 +144,36 @@ function simplifyHeadingHierarchy(headingHierarchy) {
 }
 
 function handleExport(format) {
-  if (format === 'md') exportMarkdown()
-  else if (format === 'json') exportJSON()
+  pendingExportFormat.value = format
+  exportSeveritySelections.value = ['error', 'warning', 'info']
+  exportDialogVisible.value = true
 }
 
-function exportMarkdown() {
+function confirmExport() {
+  if (exportSeveritySelections.value.length === 0) {
+    ElMessage.warning('请至少选择一个重要程度级别')
+    return
+  }
+  if (exportResults.value.length === 0) {
+    ElMessage.warning('当前筛选下没有可导出的结果')
+    return
+  }
+
+  if (pendingExportFormat.value === 'md') exportMarkdown(exportResults.value, exportSummary.value)
+  else if (pendingExportFormat.value === 'json') exportJSON(exportResults.value, exportSummary.value)
+
+  exportDialogVisible.value = false
+}
+
+function exportMarkdown(results, summary) {
   const lines = ['# 论文检查报告\n']
   if (props.fileName) {
     lines.push(`**文件**: ${props.fileName}\n`)
   }
   lines.push(`**时间**: ${new Date().toLocaleString('zh-CN')}\n`)
-  lines.push(`共发现 ${props.summary.total} 个问题：${props.summary.errors} 个错误、${props.summary.warnings} 个警告、${props.summary.infos} 个建议\n`)
+  lines.push(`共发现 ${summary.total} 个问题：${summary.errors} 个错误、${summary.warnings} 个警告、${summary.infos} 个建议\n`)
 
-  props.results.forEach((r, i) => {
+  results.forEach((r, i) => {
     lines.push(`## 问题 ${i + 1} [${severityMap[r.severity]}][${categoryMap[r.category]}]`)
     lines.push(`- 位置: ${simplifyHeadingHierarchy(r.headingHierarchy)}`)
     lines.push(`- 原文: ${r.original}`)
@@ -121,12 +185,13 @@ function exportMarkdown() {
   downloadFile(lines.join('\n'), '论文检查报告.md', 'text/markdown;charset=utf-8')
 }
 
-function exportJSON() {
+function exportJSON(results, summary) {
   const data = {
     fileName: props.fileName,
     exportedAt: new Date().toISOString(),
-    summary: props.summary,
-    results: props.results.map(r => ({
+    summary,
+    selectedSeverities: exportSeveritySelections.value,
+    results: results.map(r => ({
       ...r,
       headingHierarchy: simplifyHeadingHierarchy(r.headingHierarchy),
     })),
@@ -180,5 +245,23 @@ function downloadFile(content, filename, mimeType) {
 .result-list {
   max-height: 600px;
   overflow-y: auto;
+}
+.export-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.export-format {
+  font-size: 13px;
+  color: #606266;
+}
+.export-label {
+  font-weight: 600;
+  color: #303133;
+}
+.export-preview {
+  font-size: 13px;
+  color: #909399;
+  line-height: 1.6;
 }
 </style>
