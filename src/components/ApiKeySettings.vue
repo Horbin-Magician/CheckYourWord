@@ -55,14 +55,6 @@
         />
       </el-form-item>
 
-      <el-form-item label="检查选项">
-        <el-switch
-          v-model="ignoreFormulaIssues"
-          active-text="忽略公式相关问题"
-          inactive-text="检查公式相关问题"
-        />
-      </el-form-item>
-
       <el-form-item>
         <el-button type="primary" @click="handleSaveAndTest" :loading="testing">
           保存并测试连接
@@ -82,24 +74,25 @@ import { ref, watch } from 'vue'
 const props = defineProps({
   gemini: { type: Object, required: true },
   maxTokens: { type: Number, required: true },
-  ignoreFormulaIssues: { type: Boolean, required: true },
 })
 
-const emit = defineEmits(['update:maxTokens', 'update:ignoreFormulaIssues'])
+const emit = defineEmits(['update:maxTokens'])
 
 const visible = defineModel('visible', { type: Boolean })
 const showKey = ref(false)
 const testing = ref(false)
 
 const maxTokens = ref(props.maxTokens)
-const ignoreFormulaIssues = ref(props.ignoreFormulaIssues)
+
+watch(
+  () => props.maxTokens,
+  (val) => {
+    maxTokens.value = val
+  }
+)
 
 watch(maxTokens, (val) => {
   emit('update:maxTokens', val)
-})
-
-watch(ignoreFormulaIssues, (val) => {
-  emit('update:ignoreFormulaIssues', val)
 })
 
 async function handleSaveAndTest() {

@@ -5,15 +5,23 @@ import { SYSTEM_INSTRUCTION, buildCheckPrompt, RESPONSE_SCHEMA } from '../utils/
 const STORAGE_KEY = 'checkyourword_api_key'
 const MODEL_STORAGE_KEY = 'checkyourword_model'
 const BASE_URL_STORAGE_KEY = 'checkyourword_base_url'
+const CUSTOM_PROMPTS_STORAGE_KEY = 'checkyourword_custom_prompts'
 const IGNORE_FORMULA_ISSUES_STORAGE_KEY = 'checkyourword_ignore_formula_issues'
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
 const MIN_REQUEST_INTERVAL = 6000 // 免费用户 10 RPM
+
+const BUILTIN_FORMULA_PROMPT = {
+  id: 'builtin-ignore-formula-issues',
+  text: '请忽略所有与公式相关的问题，包括但不限于数学公式、LaTeX/MathType 表达、变量符号、上下标、公式编号及其标点。不要为这些内容生成任何修改建议。',
+  enabled: true,
+  builtIn: true,
+}
 
 export function useGemini() {
   const apiKey = ref(localStorage.getItem(STORAGE_KEY) || '')
   const model = ref(localStorage.getItem(MODEL_STORAGE_KEY) || 'gemini-2.5-flash')
   const baseUrl = ref(localStorage.getItem(BASE_URL_STORAGE_KEY) || DEFAULT_BASE_URL)
-  const ignoreFormulaIssues = ref(localStorage.getItem(IGNORE_FORMULA_ISSUES_STORAGE_KEY) !== 'false')
+  const customPrompts = ref(loadCustomPrompts())
   const isConnected = ref(false)
   const connectionError = ref(null)
 
@@ -24,9 +32,13 @@ export function useGemini() {
     localStorage.setItem(STORAGE_KEY, apiKey.value)
     localStorage.setItem(MODEL_STORAGE_KEY, model.value)
     localStorage.setItem(BASE_URL_STORAGE_KEY, baseUrl.value)
-    localStorage.setItem(IGNORE_FORMULA_ISSUES_STORAGE_KEY, String(ignoreFormulaIssues.value))
+    persistCustomPrompts()
     ai = null // 重置 client
     isConnected.value = false
+  }
+
+  function persistCustomPrompts() {
+    localStorage.setItem(CUSTOM_PROMPTS_STORAGE_KEY, JSON.stringify(normalizeCustomPrompts(customPrompts.value)))
   }
 
   function getClient() {
@@ -83,7 +95,11 @@ export function useGemini() {
       chunk.chunkHeadingHierarchy || chunk.headingHierarchy,
       chunk.index,
       chunk.totalChunks,
-      { ignoreFormulaIssues: ignoreFormulaIssues.value }
+      {
+        customPrompts: normalizeCustomPrompts(customPrompts.value)
+          .filter(item => item.enabled)
+          .map(item => item.text),
+      }
     )
 
     lastRequestTime = Date.now()
@@ -108,14 +124,61 @@ export function useGemini() {
     apiKey,
     model,
     baseUrl,
-    ignoreFormulaIssues,
+    customPrompts,
     DEFAULT_BASE_URL,
     isConnected,
     connectionError,
     saveSettings,
+    persistCustomPrompts,
     testConnection,
     checkChunk,
   }
+}
+
+function loadCustomPrompts() {
+  const saved = localStorage.getItem(CUSTOM_PROMPTS_STORAGE_KEY)
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved)
+      return normalizeCustomPrompts(parsed)
+    } catch {
+      // ignore invalid storage and fallback to default values
+    }
+  }
+
+  const legacyIgnoreFormula = localStorage.getItem(IGNORE_FORMULA_ISSUES_STORAGE_KEY) !== 'false'
+  return normalizeCustomPrompts([
+    {
+      ...BUILTIN_FORMULA_PROMPT,
+      enabled: legacyIgnoreFormula,
+    },
+  ])
+}
+
+function normalizeCustomPrompts(list) {
+  const normalized = Array.isArray(list)
+    ? list
+        .map((item) => {
+          if (!item || typeof item !== 'object') return null
+          const text = typeof item.text === 'string' ? item.text.trim() : ''
+          if (!text) return null
+          const isBuiltIn = item.id === BUILTIN_FORMULA_PROMPT.id || item.builtIn === true
+          return {
+            id: typeof item.id === 'string' && item.id ? item.id : `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            text,
+            enabled: item.enabled !== false,
+            builtIn: isBuiltIn,
+          }
+        })
+        .filter(Boolean)
+    : []
+
+  const formulaPrompt = normalized.find(item => item.id === BUILTIN_FORMULA_PROMPT.id)
+  if (!formulaPrompt) {
+    normalized.unshift({ ...BUILTIN_FORMULA_PROMPT })
+  }
+
+  return normalized
 }
 
 function sleep(ms) {

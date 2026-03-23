@@ -58,9 +58,14 @@ defineExpose({ reset })
 
 <style scoped>
 .upload-area {
-  max-width: 600px;
-  margin: 0 auto;
+  width: 100%;
 }
+
+.upload-area :deep(.el-upload),
+.upload-area :deep(.el-upload-dragger) {
+  width: 100%;
+}
+
 .upload-icon {
   font-size: 67px;
   color: #c0c4cc;

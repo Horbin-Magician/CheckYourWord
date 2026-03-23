@@ -11,11 +11,21 @@ export const SYSTEM_INSTRUCTION = `你是一位专业的学术论文审校编辑
 你必须只返回有效的 JSON 格式，匹配指定的 schema。不要在 JSON 结构之外包含任何文本。`
 
 export function buildCheckPrompt(chunkText, headingHierarchy, chunkIndex, totalChunks, options = {}) {
-  const { ignoreFormulaIssues = true } = options
+  const { ignoreFormulaIssues = true, customPrompts = [] } = options
 
   const formulaRule = ignoreFormulaIssues
     ? '请忽略所有与公式相关的问题，包括但不限于数学公式、LaTeX/MathType 表达、变量符号、上下标、公式编号及其标点。不要为这些内容生成任何修改建议。'
     : '请同时检查与公式相关的问题（如公式符号、编号、公式前后标点与表述衔接），仅在你能明确判断确有问题时给出建议。'
+
+  const normalizedCustomPrompts = Array.isArray(customPrompts)
+    ? customPrompts
+        .map(item => (typeof item === 'string' ? item.trim() : ''))
+        .filter(Boolean)
+    : []
+
+  const customPromptText = normalizedCustomPrompts.length
+    ? `\n**额外审校规则**:\n${normalizedCustomPrompts.map((item, index) => `${index + 1}. ${item}`).join('\n')}`
+    : ''
 
   return `请审校以下论文章节，找出所有需要修改的问题。
 
@@ -24,6 +34,7 @@ export function buildCheckPrompt(chunkText, headingHierarchy, chunkIndex, totalC
 
 **重要说明**: 文本中以【】包裹的行（例如【第三章 研究方法】）是章节位置标记，仅用于标识上下文，不属于论文正文。请勿对这些标记行本身报告任何问题，也不要在 "original" 字段中包含这些标记文本。
 **公式处理规则**: ${formulaRule}
+${customPromptText}
 
 ---
 ${chunkText}
