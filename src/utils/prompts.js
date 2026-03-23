@@ -14,7 +14,7 @@ export function buildCheckPrompt(chunkText, headingHierarchy, chunkIndex, totalC
   const { ignoreFormulaIssues = true, customPrompts = [] } = options
 
   const formulaRule = ignoreFormulaIssues
-    ? '请忽略所有与公式相关的问题，包括但不限于数学公式、LaTeX/MathType 表达、变量符号、上下标、公式编号及其标点。不要为这些内容生成任何修改建议。'
+    ? '请忽略所有与公式相关的问题，包括但不限于数学公式、LaTeX/MathType 表达、变量符号、上下标及其标点。不要为这些内容生成任何修改建议。'
     : '请同时检查与公式相关的问题（如公式符号、编号、公式前后标点与表述衔接），仅在你能明确判断确有问题时给出建议。'
 
   const normalizedCustomPrompts = Array.isArray(customPrompts)

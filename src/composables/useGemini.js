@@ -12,7 +12,7 @@ const MIN_REQUEST_INTERVAL = 6000 // 免费用户 10 RPM
 
 const BUILTIN_FORMULA_PROMPT = {
   id: 'builtin-ignore-formula-issues',
-  text: '请忽略所有与公式相关的问题，包括但不限于数学公式、LaTeX/MathType 表达、变量符号、上下标、公式编号及其标点。不要为这些内容生成任何修改建议。',
+  text: '请忽略所有与公式相关的问题，包括但不限于数学公式、LaTeX/MathType 表达、变量符号、上下标及其标点。不要为这些内容生成任何修改建议。',
   enabled: true,
   builtIn: true,
 }
