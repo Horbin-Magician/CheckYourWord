@@ -8,7 +8,6 @@ const BASE_URL_STORAGE_KEY = 'checkyourword_base_url'
 const CUSTOM_PROMPTS_STORAGE_KEY = 'checkyourword_custom_prompts'
 const IGNORE_FORMULA_ISSUES_STORAGE_KEY = 'checkyourword_ignore_formula_issues'
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
-const MIN_REQUEST_INTERVAL = 6000 // 免费用户 10 RPM
 
 const BUILTIN_FORMULA_PROMPT = {
   id: 'builtin-ignore-formula-issues',
@@ -26,7 +25,7 @@ export function useGemini() {
   const connectionError = ref(null)
 
   let ai = null
-  let lastRequestTime = 0
+  let cooldownUntil = 0
 
   function saveSettings() {
     localStorage.setItem(STORAGE_KEY, apiKey.value)
@@ -83,12 +82,7 @@ export function useGemini() {
     const client = getClient()
     if (!client) throw new Error('API 未配置')
 
-    // 限流等待
-    const now = Date.now()
-    const elapsed = now - lastRequestTime
-    if (elapsed < MIN_REQUEST_INTERVAL) {
-      await sleep(MIN_REQUEST_INTERVAL - elapsed)
-    }
+    await waitForCooldown()
 
     const prompt = buildCheckPrompt(
       chunk.textContent,
@@ -102,22 +96,48 @@ export function useGemini() {
       }
     )
 
-    lastRequestTime = Date.now()
+    try {
+      const response = await client.models.generateContent({
+        model: model.value,
+        contents: prompt,
+        config: {
+          systemInstruction: SYSTEM_INSTRUCTION,
+          responseMimeType: 'application/json',
+          responseSchema: RESPONSE_SCHEMA,
+        },
+      })
 
-    const response = await client.models.generateContent({
-      model: model.value,
-      contents: prompt,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        responseMimeType: 'application/json',
-        responseSchema: RESPONSE_SCHEMA,
-      },
-    })
+      const text = response.text
+      const issues = JSON.parse(text)
+      // 过滤掉 original 字段命中【标题标记】的误报
+      return issues.filter(issue => !/^【[^】]*】(（续）)?\s*$/.test(issue.original?.trim()))
+    } catch (e) {
+      // 命中限流时设置全局冷却时间，交由上层重试策略继续处理
+      const retryMs = resolveRetryDelayMs(e)
+      if (retryMs > 0) {
+        cooldownUntil = Math.max(cooldownUntil, Date.now() + retryMs)
+      }
+      throw e
+    }
+  }
 
-    const text = response.text
-    const issues = JSON.parse(text)
-    // 过滤掉 original 字段命中【标题标记】的误报
-    return issues.filter(issue => !/^【[^】]*】(（续）)?\s*$/.test(issue.original?.trim()))
+  async function waitForCooldown() {
+    while (cooldownUntil > Date.now()) {
+      await sleep(Math.min(1200, cooldownUntil - Date.now()))
+    }
+  }
+
+  function resolveRetryDelayMs(error) {
+    const message = String(error?.message || error || '')
+    const isRateLimit = /429|RESOURCE_EXHAUSTED|rate limit|quota/i.test(message)
+    if (!isRateLimit) return 0
+
+    const secondsMatch = message.match(/retry\s*after\s*(\d+)\s*s/i)
+    if (secondsMatch) {
+      return Math.max(1000, Number(secondsMatch[1]) * 1000)
+    }
+
+    return 8000
   }
 
   return {

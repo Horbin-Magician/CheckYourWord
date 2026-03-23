@@ -58,46 +58,89 @@ export function useProofreading() {
     }
   })
 
-  async function startProofreading(chunks, checkChunkFn) {
+  function syncCurrentChunkIndex() {
+    currentChunkIndex.value = chunkStatuses.value.findIndex(s => s === 'processing')
+  }
+
+  async function processChunkWithRetry(chunk, chunkIndex, checkChunkFn, maxRetries) {
+    let retries = 0
+
+    while (retries <= maxRetries) {
+      if (cancelled) throw new Error('cancelled')
+
+      try {
+        const issues = await checkChunkFn(chunk)
+        const enriched = issues.map(issue => ({
+          ...issue,
+          sectionNames: chunk.sectionNames,
+          headingHierarchy: resolveIssueHeading(chunk, issue),
+          chunkIndex,
+        }))
+        return enriched
+      } catch (e) {
+        retries++
+        if (retries > maxRetries) {
+          throw e
+        }
+
+        // 限流或服务端错误时适当延长退避，降低并发冲突概率
+        const errorText = String(e?.message || e || '')
+        const isRateLimit = /429|RESOURCE_EXHAUSTED|rate limit|quota/i.test(errorText)
+        const baseDelay = isRateLimit ? 3000 : 1200
+        await new Promise(r => setTimeout(r, baseDelay * retries))
+      }
+    }
+
+    return []
+  }
+
+  async function startProofreading(chunks, checkChunkFn, options = {}) {
+    const concurrency = Math.max(1, Math.min(options.concurrency || 3, chunks.length || 1))
+    const maxRetries = Number.isInteger(options.maxRetries) && options.maxRetries >= 0
+      ? options.maxRetries
+      : 2
+
     cancelled = false
     isProcessing.value = true
     results.value = []
     chunkStatuses.value = chunks.map(() => 'pending')
-    currentChunkIndex.value = 0
+    currentChunkIndex.value = -1
 
-    for (let i = 0; i < chunks.length; i++) {
-      if (cancelled) break
+    let nextChunkIndex = 0
 
-      currentChunkIndex.value = i
-      chunkStatuses.value[i] = 'processing'
+    const worker = async () => {
+      while (!cancelled) {
+        const i = nextChunkIndex
+        nextChunkIndex += 1
 
-      let retries = 0
-      const maxRetries = 2
+        if (i >= chunks.length) break
 
-      while (retries <= maxRetries) {
+        chunkStatuses.value[i] = 'processing'
+        syncCurrentChunkIndex()
+
         try {
-          const issues = await checkChunkFn(chunks[i])
-          // 给每条结果附加章节信息，尝试精确匹配到原文所在的小节
-          const enriched = issues.map(issue => ({
-            ...issue,
-            sectionNames: chunks[i].sectionNames,
-            headingHierarchy: resolveIssueHeading(chunks[i], issue),
-            chunkIndex: i,
-          }))
+          const enriched = await processChunkWithRetry(chunks[i], i, checkChunkFn, maxRetries)
           results.value = [...results.value, ...enriched]
           chunkStatuses.value[i] = 'completed'
-          break
         } catch (e) {
-          retries++
-          if (retries > maxRetries) {
+          if (!cancelled) {
             console.error(`Chunk ${i} failed after ${maxRetries} retries:`, e)
             chunkStatuses.value[i] = 'error'
-          } else {
-            // 指数退避
-            await new Promise(r => setTimeout(r, 2000 * retries))
+          } else if (chunkStatuses.value[i] === 'processing') {
+            chunkStatuses.value[i] = 'pending'
           }
         }
+
+        syncCurrentChunkIndex()
       }
+    }
+
+    await Promise.all(Array.from({ length: concurrency }, () => worker()))
+
+    if (cancelled) {
+      chunkStatuses.value = chunkStatuses.value.map(status =>
+        status === 'processing' ? 'pending' : status
+      )
     }
 
     isProcessing.value = false

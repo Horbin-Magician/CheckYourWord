@@ -215,7 +215,10 @@ async function startCheck() {
     return
   }
 
-  await proofreading.startProofreading(chunker.chunks.value, gemini.checkChunk)
+  await proofreading.startProofreading(chunker.chunks.value, gemini.checkChunk, {
+    concurrency: 3,
+    maxRetries: 2,
+  })
 
   if (proofreading.errorCount.value > 0) {
     ElMessage.warning(`检查完成，${proofreading.errorCount.value} 个分块处理失败`)
